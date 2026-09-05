@@ -4,7 +4,7 @@ import pg from 'pg';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import nodemailer from 'nodemailer';
+
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -51,6 +51,107 @@ app.use(express.static(path.join(root, 'public')));
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
+
+const publicBaseUrl = () =>
+  (process.env.APP_URL || 'https://anak-asuh.vercel.app').replace(/\/$/, '');
+
+function hashToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function sign(user) {
+  return jwt.sign(
+    {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      status: user.status
+    },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+}
+
+function setAuth(res, token) {
+  res.cookie('anakAsuhToken', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: '/'
+  });
+}
+
+function clearAuth(res) {
+  res.clearCookie('anakAsuhToken', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/'
+  });
+}
+
+async function auth(req, res, next) {
+  try {
+    const token = req.cookies?.anakAsuhToken;
+
+    if (!token) {
+      return res.status(401).json({ error: 'Belum login.' });
+    }
+
+    const payload = jwt.verify(token, JWT_SECRET);
+
+    const { rows } = await pool.query(
+      `SELECT id,email,phone_number,role,status,email_verified_at
+       FROM users
+       WHERE id=$1`,
+      [payload.id]
+    );
+
+    const user = rows[0];
+
+    if (!user) {
+      clearAuth(res);
+      return res.status(401).json({ error: 'Akun tidak ditemukan.' });
+    }
+
+    if (user.status === 'SUSPENDED') {
+      clearAuth(res);
+      return res.status(403).json({ error: 'Akun Anda ditangguhkan.' });
+    }
+
+    if (!user.email_verified_at) {
+      clearAuth(res);
+      return res.status(403).json({ error: 'Email belum diverifikasi.' });
+    }
+
+    req.user = {
+      id: user.id,
+      email: user.email,
+      phone: user.phone_number,
+      role: user.role,
+      status: user.status,
+      email_verified_at: user.email_verified_at
+    };
+
+    next();
+  } catch (e) {
+    console.error('Auth error:', e.message);
+    clearAuth(res);
+    return res.status(401).json({
+      error: 'Sesi login tidak valid atau sudah kedaluwarsa.'
+    });
+  }
+}
+
+function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Akses ditolak.' });
+    }
+    next();
+  };
+}
 
 
 async function sendEmail({ to, subject, html }) {
