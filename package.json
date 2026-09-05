@@ -1,0 +1,23 @@
+{
+  "name": "anakasuh-system",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node --watch server/server.js",
+    "create-admin": "node server/create-admin.js",
+    "db:init": "node server/init-db.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^7.0.6",
+    "pg": "^8.16.3",
+    "express-rate-limit": "^8.3.0",
+    "helmet": "^8.1.0"
+  }
+}
