@@ -178,4 +178,4 @@ app.use((req,res,next)=>{ if(req.path.startsWith('/api/')) return next(); res.se
 
 app.use((err,req,res,next)=>{console.error(err);res.status(500).json({error:'Terjadi kesalahan server.'});});
 
-app.listen(PORT, '0.0.0.0', ()=>console.log(`AnakAsuh berjalan di ${publicBaseUrl()}`));
+export default app;
