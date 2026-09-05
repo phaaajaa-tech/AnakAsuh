@@ -74,7 +74,7 @@ async function auth(req, res, next) {
 
 function requireRole(...roles) { return (req,res,next) => roles.includes(req.user.role) ? next() : res.status(403).json({error:'Akses tidak diizinkan untuk role ini.'}); }
 
-const publicBaseUrl = () => (process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
+const publicBaseUrl = () => (process.env.APP_URL || 'https://anak-asuh.vercel.app').replace(/\/$/, '');
 
 async function sendVerificationEmail(user, rawToken) {
   const url = `${publicBaseUrl()}/verify-email.html?token=${encodeURIComponent(rawToken)}`;
