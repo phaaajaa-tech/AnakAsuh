@@ -49,44 +49,76 @@ const sensitiveAuthRateLimit = rateLimit({
 });
 app.use(express.static(path.join(root, 'public')));
 
-const mailer = process.env.SMTP_HOST ? nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: String(process.env.SMTP_SECURE).toLowerCase() === 'true',
-  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-}) : null;
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
-const hashToken = t => crypto.createHash('sha256').update(t).digest('hex');
-const sign = user => jwt.sign({ sub: user.id, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
-const setAuth = (res, token) => res.cookie('anakasuh_session', token, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 86400000 });
-const clearAuth = res => res.clearCookie('anakasuh_session');
 
-async function auth(req, res, next) {
-  try {
-    const token = req.cookies.anakasuh_session;
-    if (!token) return res.status(401).json({ error: 'Belum login.' });
-    const payload = jwt.verify(token, JWT_SECRET);
-    const { rows } = await pool.query('SELECT id,email,phone_number,role,status,email_verified_at FROM users WHERE id=$1', [payload.sub]);
-    if (!rows[0]) return res.status(401).json({ error: 'Sesi tidak valid.' });
-    req.user = rows[0]; next();
-  } catch { res.status(401).json({ error: 'Sesi berakhir. Silakan login lagi.' }); }
+
+async function sendEmail({ to, subject, html }) {
+  if (!RESEND_API_KEY) {
+    throw new Error('RESEND_API_KEY belum diset.');
+  }
+
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from: 'AnakAsuh <onboarding@resend.dev>',
+      to: [to],
+      subject,
+      html
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Resend error: ${errorText}`);
+  }
+
+  return response.json();
 }
-
-function requireRole(...roles) { return (req,res,next) => roles.includes(req.user.role) ? next() : res.status(403).json({error:'Akses tidak diizinkan untuk role ini.'}); }
-
-const publicBaseUrl = () => (process.env.APP_URL || 'https://anak-asuh.vercel.app').replace(/\/$/, '');
 
 async function sendVerificationEmail(user, rawToken) {
   const url = `${publicBaseUrl()}/verify-email.html?token=${encodeURIComponent(rawToken)}`;
-  if (!mailer) { console.log('[DEV] Link verifikasi:', url); return; }
-  await mailer.sendMail({ from: process.env.SMTP_FROM, to: user.email, subject: 'Verifikasi Email AnakAsuh', html: `<p>Selamat datang di AnakAsuh.</p><p>Klik tombol berikut untuk memverifikasi email:</p><p><a href="${url}">Verifikasi Email</a></p><p>Link berlaku 24 jam.</p>` });
+
+  await sendEmail({
+    to: user.email,
+    subject: 'Verifikasi Email AnakAsuh',
+    html: `
+      <p>Selamat datang di AnakAsuh.</p>
+      <p>Klik tombol berikut untuk memverifikasi email:</p>
+      <p>
+        <a href="${url}"
+           style="display:inline-block;padding:10px 16px;background:#16a34a;color:white;text-decoration:none;border-radius:6px;">
+          Verifikasi Email
+        </a>
+      </p>
+      <p>Link berlaku 24 jam.</p>
+    `
+  });
 }
 
 async function sendResetEmail(user, rawToken) {
   const url = `${publicBaseUrl()}/reset-password.html?token=${encodeURIComponent(rawToken)}`;
-  if (!mailer) { console.log('[DEV] Link reset password:', url); return; }
-  await mailer.sendMail({ from: process.env.SMTP_FROM, to: user.email, subject: 'Reset Password AnakAsuh', html: `<p>Gunakan link ini untuk membuat password baru:</p><p><a href="${url}">Reset Password</a></p><p>Link berlaku 1 jam.</p>` });
+
+  await sendEmail({
+    to: user.email,
+    subject: 'Reset Password AnakAsuh',
+    html: `
+      <p>Gunakan link berikut untuk membuat password baru:</p>
+      <p>
+        <a href="${url}"
+           style="display:inline-block;padding:10px 16px;background:#16a34a;color:white;text-decoration:none;border-radius:6px;">
+          Reset Password
+        </a>
+      </p>
+      <p>Link berlaku 1 jam.</p>
+    `
+  });
 }
+
 
 app.get('/api/health', async (req,res) => { const {rows}=await pool.query('SELECT now()'); res.json({ok:true, database:true, time:rows[0].now}); });
 
