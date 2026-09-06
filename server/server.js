@@ -49,7 +49,7 @@ const sensitiveAuthRateLimit = rateLimit({
 });
 app.use(express.static(path.join(root, 'public')));
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
+
 
 
 const publicBaseUrl = () =>
@@ -154,33 +154,43 @@ function requireRole(...roles) {
 }
 
 
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const BREVO_FROM_EMAIL = process.env.BREVO_FROM_EMAIL || 'phaaajaa@gmail.com';
+
 async function sendEmail({ to, subject, html }) {
-  if (!RESEND_API_KEY) {
-    throw new Error('RESEND_API_KEY belum diset.');
+  if (!BREVO_API_KEY) {
+    throw new Error('BREVO_API_KEY belum diset.');
   }
 
-  const response = await fetch('https://api.resend.com/emails', {
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      'Content-Type': 'application/json'
+      accept: 'application/json',
+      'api-key': BREVO_API_KEY,
+      'content-type': 'application/json'
     },
     body: JSON.stringify({
-      from: 'AnakAsuh <onboarding@resend.dev>',
-      to: [to],
+      sender: {
+        name: 'AnakAsuh',
+        email: BREVO_FROM_EMAIL
+      },
+      to: [
+        {
+          email: to
+        }
+      ],
       subject,
-      html
+      htmlContent: html
     })
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Resend error: ${errorText}`);
+    throw new Error(`Brevo error: ${errorText}`);
   }
 
   return response.json();
 }
-
 async function sendVerificationEmail(user, rawToken) {
   const url = `${publicBaseUrl()}/verify-email.html?token=${encodeURIComponent(rawToken)}`;
 
