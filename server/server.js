@@ -120,10 +120,11 @@ async function auth(req, res, next) {
       return res.status(403).json({ error: 'Akun Anda ditangguhkan.' });
     }
 
-    if (!user.email_verified_at) {
-      clearAuth(res);
-      return res.status(403).json({ error: 'Email belum diverifikasi.' });
-    }
+    if (process.env.REQUIRE_EMAIL_VERIFICATION !== 'false' && !user.email_verified_at) {
+  return res.status(403).json({
+    error: 'Email belum diverifikasi. Silakan cek email Anda.'
+  });
+}
 
     req.user = {
       id: user.id,
