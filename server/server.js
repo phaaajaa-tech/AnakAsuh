@@ -261,7 +261,9 @@ app.post('/api/auth/login', authRateLimit, async (req,res) => {
   const {rows}=await pool.query('SELECT id,email,password_hash,phone_number,role,status,email_verified_at FROM users WHERE lower(email)=lower($1)', [email||'']);
   const user=rows[0];
   if (!user || !(await bcrypt.compare(password||'',user.password_hash))) return res.status(401).json({error:'Email atau password salah.'});
-  if (!user.email_verified_at) return res.status(403).json({error:'Email belum diverifikasi. Silakan cek email Anda.'});
+  if (process.env.REQUIRE_EMAIL_VERIFICATION === 'true' && !user.email_verified_at) {
+  return res.status(403).json({error:'Email belum diverifikasi. Silakan cek email Anda.'});
+}
   setAuth(res,sign(user));
   res.json({message:'Login berhasil.',user:{id:user.id,email:user.email,phone:user.phone_number,role:user.role,status:user.status}});
 });
