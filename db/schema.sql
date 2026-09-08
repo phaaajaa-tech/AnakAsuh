@@ -123,3 +123,27 @@ ALTER TABLE child_profiles ADD COLUMN IF NOT EXISTS class_semester TEXT;
 ALTER TABLE child_profiles ADD COLUMN IF NOT EXISTS school TEXT;
 ALTER TABLE child_profiles ADD COLUMN IF NOT EXISTS achievements TEXT;
 ALTER TABLE child_profiles ADD COLUMN IF NOT EXISTS training TEXT;
+-- =========================================================
+-- WHATSAPP OTP LOGIN
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS whatsapp_otp_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  phone_number TEXT NOT NULL,
+  otp_hash TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at TIMESTAMPTZ,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_sent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_whatsapp_otp_user
+  ON whatsapp_otp_tokens(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_whatsapp_otp_phone
+  ON whatsapp_otp_tokens(phone_number);
+
+CREATE INDEX IF NOT EXISTS idx_whatsapp_otp_expiry
+  ON whatsapp_otp_tokens(expires_at);
